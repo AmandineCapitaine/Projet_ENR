@@ -39,6 +39,7 @@ class modele_complet :
     def load_param(self, path, name_load_factor= "vre_profiles2006.csv", name_gene_river =  "run_of_river.csv") : 
         
         print("Chargement des paramètres ...")
+        print(name_load_factor)
         
         # profil des VRE par heure (éolien + PV)
         self.load_factor = pd.read_csv(path + name_load_factor, index_col=[0, 1], squeeze=True, header=None)
@@ -47,14 +48,14 @@ class modele_complet :
         self.epsilon = pd.read_csv(path+"reserve_requirements.csv", index_col=0, squeeze=True, header=None)
         
         # Demand profile in each our in GW
-        self.demand_2050 = pd.read_csv(path + "demand2050_RTE.csv",index_col = 0, squeeze=True, header=None)
-        print("Demande de RTE")
+        #self.demand_2050 = pd.read_csv(path + "demand2050_RTE.csv",index_col = 0, squeeze=True, header=None)
+        #print("Demande de RTE")
         
         #self.demand_2050 = pd.read_csv(path + "demand2050_negawatt.csv",index_col=0, squeeze=True, header=None)
         #print("Demande de Negawatt")
         
-        #self.demand_2050 = pd.read_csv(path + "demand2050_ademe.csv",index_col=0, squeeze=True, header=None)
-        #print("Demande de l'ADEME")
+        self.demand_2050 = pd.read_csv(path + "demand2050_ademe.csv",index_col=0, squeeze=True, header=None)
+        print("Demande de l'ADEME")
         
         #self.demand_2050 = pd.read_csv(path + "demand2050_ademe_noise.csv",index_col = 0, squeeze=True, header=None)[1:]
         #print("Demande de l'ADEME avec du bruit")
@@ -179,15 +180,15 @@ class modele_complet :
         self.model.reserve = pyo.Var(((reserve, h) for reserve in self.model.frr for h in self.model.h), within=pyo.NonNegativeReals,initialize=0)
         
         # Q installed capacity
-        self.model.Q = pyo.Var(self.model.tec, within  =pyo.NonNegativeReals,initialize=0, bounds = self.capa_bounds)
+        self.model.Q = pyo.Var(self.model.tec, within = pyo.NonNegativeReals,initialize=0, bounds = self.capa_bounds)
         self.model.Q["river"].fix(7.5)
         self.model.Q["lake"].fix(12.855)
         
         # S charging capacity
-        self.model.S = pyo.Var(self.model.str, within =pyo.NonNegativeReals,initialize=0, bounds = self.s_bounds)
+        self.model.S = pyo.Var(self.model.str, within = pyo.NonNegativeReals,initialize=0, bounds = self.s_bounds)
         
         # VOLUME energy capacity
-        self.model.volume = pyo.Var(self.model.str, within =pyo.NonNegativeReals,initialize=0, bounds = self.capacity_bounds)
+        self.model.volume = pyo.Var(self.model.str, within = pyo.NonNegativeReals,initialize=0, bounds = self.capacity_bounds)
         
         
     # définition des contraintes : 
@@ -336,20 +337,52 @@ class modele_complet :
         return c_tot
     
         
+
     def write_results(self, model_name):
         print("Ecriture des résultats ..." )
+
         if not os.path.exists(model_name):
             os.makedirs(model_name)
-        
+            
         #enregistrement des données d'entrées du modèle
+        # Q  : installed capacity 
         Q_file = model_name + "/" + model_name + "_Q.csv"
-        self.Q.to_csv(Q_file)
         
+        Q_index = []
+        Q_value = []
+        
+        for i in self.model.Q:
+            Q_index += [i]
+            Q_value += [pyo.value(self.model.Q[i])]
+        
+        data_Q = pd.DataFrame(Q_value, index=Q_index)
+        data_Q.to_csv(Q_file)
+        
+        # S : charging capacity
         S_file = model_name + "/" + model_name + "_S.csv"
-        self.model.S.to_csv(S_file)
         
-        Volume_file = model_name + "/" + model_name + "_Volume.csv"
-        self.model.volume.to_csv(Volume_file)
+        S_index = []
+        S_value = []
+        
+        for i in self.model.S:
+            S_index += [i]
+            S_value += [pyo.value(self.model.S[i])]
+        
+        data_S = pd.DataFrame(S_value, index=S_index)
+        data_S.to_csv(S_file)
+        
+        # VOLUME : energy capacity
+        V_file = model_name + "/" + model_name + "_Volume.csv"
+        
+        V_index = []
+        V_value = []
+        
+        for i in self.model.volume:
+            V_index += [i]
+            V_value += [pyo.value(self.model.volume[i])]
+        
+        data_V = pd.DataFrame(V_value, index=V_index)
+        data_V.to_csv(V_file)
         
         #enregistrement des résultats du modèle
         hourly_file = model_name + "/" + model_name + "_hourly_generation.csv"
